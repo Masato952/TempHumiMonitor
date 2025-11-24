@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 温湿度曲线</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h2>ESP32 温湿度曲线</h2>
+  <canvas id="chart" width="800" height="400"></canvas>
+
+  <script>
+    async function fetchData() {
+      const res = await fetch("/api/upload");
+      const data = await res.json();
+
+      const labels = data.map(d => new Date(d.ts * 1000).toLocaleTimeString());
+      const tempData = data.map(d => d.temp);
+      const humiData = data.map(d => d.humi);
+
+      const ctx = document.getElementById('chart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: '温度 (℃)', data: tempData, borderColor: 'red', fill: false },
+            { label: '湿度 (%)', data: humiData, borderColor: 'blue', fill: false }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>
