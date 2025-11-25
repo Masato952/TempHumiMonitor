@@ -8,28 +8,48 @@
 <body style="font-family: sans-serif; padding: 20px;">
   <h2>Last 24 Hours Data</h2>
   <canvas id="chart" width="600" height="300"></canvas>
+  <p id="status"></p>
 
   <script>
+    const API_URL = "https://temp-humi-monitor-ad79.vercel.app/api/th"; // ✅ 使用主域 API
+
     async function loadData() {
-      const res = await fetch("/api/th");
-      const data = await res.json();
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = "Loading data...";
 
-      const labels = data.map(d => new Date(d.t).toLocaleTimeString());
-      const temps  = data.map(d => d.temp);
-      const humis  = data.map(d => d.humi);
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        const data = await res.json();
 
-      const ctx = document.getElementById("chart").getContext("2d");
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            { label: "Temperature", data: temps, borderColor:"red" },
-            { label: "Humidity", data: humis, borderColor:"blue" }
-          ]
-        },
-        options: { responsive: true }
-      });
+        if (data.length === 0) {
+          statusEl.textContent = "No data available for the last 24 hours.";
+          return;
+        }
+
+        const labels = data.map(d => new Date(d.t).toLocaleTimeString());
+        const temps  = data.map(d => d.temp);
+        const humis  = data.map(d => d.humi);
+
+        const ctx = document.getElementById("chart").getContext("2d");
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              { label: "Temperature (°C)", data: temps, borderColor:"red", fill:false },
+              { label: "Humidity (%)", data: humis, borderColor:"blue", fill:false }
+            ]
+          },
+          options: { responsive: true }
+        });
+
+        statusEl.textContent = "";
+      } catch (err) {
+        console.error("Failed to load data:", err);
+        statusEl.textContent = "Failed to load data. See console for details.";
+      }
     }
 
     loadData();
