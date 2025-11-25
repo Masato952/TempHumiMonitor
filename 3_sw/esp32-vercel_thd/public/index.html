@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>Temperature & Humidity Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body style="font-family: sans-serif; padding: 20px;">
   <h2>Last 24 Hours Data</h2>
@@ -11,7 +12,7 @@
   <p id="status"></p>
 
   <script>
-    const API_URL = "https://temp-humi-monitor-ad79.vercel.app/api/th"; // ✅ 使用主域 API
+    const API_URL = "https://temp-humi-monitor-ad79.vercel.app/api/th";
 
     async function loadData() {
       const statusEl = document.getElementById("status");
@@ -20,8 +21,14 @@
       try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        
+
         const data = await res.json();
+
+        if (!Array.isArray(data)) {
+          console.error("API did not return an array:", data);
+          statusEl.textContent = "API error, see console.";
+          return;
+        }
 
         if (data.length === 0) {
           statusEl.textContent = "No data available for the last 24 hours.";

@@ -4,12 +4,12 @@ export default async function handler(req, res) {
   const now = Date.now();
 
   try {
-    // ✅ 确认 KV 环境变量是否存在
+    // --- 检查 KV 环境变量 ---
     if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+      console.error("KV environment variables not set");
       return res.status(500).json({ error: "KV environment variables not set" });
     }
 
-    // POST 上传温湿度数据
     if (req.method === "POST") {
       const { temp, humi } = req.body;
 
@@ -19,21 +19,17 @@ export default async function handler(req, res) {
 
       // 读取已有数据
       let data = (await kv.get("th-data")) || [];
-
       // 添加新记录
       data.push({ t: now, temp, humi });
-
-      // 保留最近24小时的数据
+      // 保留最近24小时
       const dayAgo = now - 24 * 60 * 60 * 1000;
       data = data.filter(d => d.t >= dayAgo);
-
       // 写回 KV
       await kv.set("th-data", data);
 
-      return res.status(200).json({ success: true });
+      return res.status(200).json({ success: true, dataLength: data.length });
     }
 
-    // GET 返回最近24小时数据
     if (req.method === "GET") {
       const data = (await kv.get("th-data")) || [];
       return res.status(200).json(data);
