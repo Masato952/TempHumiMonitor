@@ -4,12 +4,12 @@ export default async function handler(req, res) {
   const now = Date.now();
 
   try {
-    // 确认 KV 环境变量是否存在
-    if (!process.env.KV_URL || !process.env.KV_REST_API_TOKEN) {
+    // ✅ 确认 KV 环境变量是否存在
+    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
       return res.status(500).json({ error: "KV environment variables not set" });
     }
 
-    // 确认方法
+    // POST 上传温湿度数据
     if (req.method === "POST") {
       const { temp, humi } = req.body;
 
@@ -33,6 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
+    // GET 返回最近24小时数据
     if (req.method === "GET") {
       const data = (await kv.get("th-data")) || [];
       return res.status(200).json(data);
