@@ -3,44 +3,41 @@
 #include <DHTesp.h>
 #include <time.h>
 
+#include "sdcard.h"
+
 // ----------------------- CONFIG -----------------------
-const char* WIFI_SSID = "SGP200W-9FA5-bg";
-const char* WIFI_PASSWORD = "UVUZj9VY";
-
-const char* NTP_SERVER = "ntp.nict.jp"; 
-const long GMT_OFFSET_SEC = 9 * 3600;  
-const int DAYLIGHT_OFFSET_SEC = 0;
-
-const char* SERVER_URL = "https://temp-humi-monitor.vercel.app/api/upload";
 
 DHTesp dht;
 const int DHT_PIN = 21; 
 
 // -------------------- FUNCTION DEFINITIONS --------------------
-bool connectToWiFi() {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+bool connectWiFi(const char* wifi_ssid, const char* wifi_password) {
+    bool status;
+    unsigned long startAttemptTime = millis();
+    const unsigned long WIFI_TIMEOUT_MS = 180000; // 3 minutes timeout
 
-    int retry = 0;
-    while (WiFi.status() != WL_CONNECTED && retry < 20) {
-        delay(500);
-        Serial.print(".");
-        retry++;
+    WiFi.begin(wifi_ssid, wifi_password);
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)
+    {
+      delay(500);
+      Serial.print(".");
     }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nWiFi connected");
-        Serial.print("IP Address: ");
+    
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("\nFailed to connect to WiFi. ");
+        status = false;
+    }else{
+        Serial.println("\nWiFi connected.");
+        Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
-        return true;
-    } else {
-        Serial.println("\nFailed to connect to WiFi");
-        return false;
+        status = true;
     }
+    return status;
 }
 
-bool syncTime() {
-    configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
+bool syncTime(long gmtOffsetSec, long daylightOffsetSec, const char* ntpServer) {
+    configTime(gmtOffsetSec, daylightOffsetSec, ntpServer);
     struct tm timeinfo;
     int retry = 0;
 
@@ -73,21 +70,19 @@ bool readDHT(float &temperature, float &humidity) {
     }
     temperature = data.temperature;
     humidity = data.humidity;
-    Serial.println("Temperature: " + String(temperature));
-    Serial.println("Humidity: " + String(humidity));
+    Serial.printf("Temperature: %.1f°C, Humidity: %.1f%%\n", temperature, humidity);
     return true;
 }
 
-bool uploadData(float temperature, float humidity) {
+bool uploadData(const char* serverUrl, float temperature, float humidity) {
     if (WiFi.status() != WL_CONNECTED) return false;
 
     HTTPClient http;
-    http.begin(SERVER_URL);
+    http.begin(serverUrl);
     http.addHeader("Content-Type", "application/json");
 
     String payload = "{\"temp\":" + String(temperature) +
-                     ",\"humi\":" + String(humidity) +
-                     ",\"ts\":" + String(time(nullptr)) + "}";
+                     ",\"humi\":" + String(humidity) + "}";
 
     int httpResponseCode = http.POST(payload);
     if (httpResponseCode > 0) {
@@ -102,27 +97,14 @@ bool uploadData(float temperature, float humidity) {
     }
 }
 
-// 判断是否为 3、6、9… 整点上传时间
-bool isUploadHour() {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return false;
-
-    if (timeinfo.tm_min == 0 && timeinfo.tm_hour % 3 == 0) {
-        Serial.printf("Current time %02d:%02d - Upload allowed\n",
-                      timeinfo.tm_hour, timeinfo.tm_min);
-        return true;
-    }
-    return false;
-}
-
-// 进入下一个小时的深度睡眠
-void sleepUntilNextHour() {
+// Deep sleep 到下一个指定间隔（3 小时）
+void sleepUntilNextUpload() {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) return;
 
-    int secondsToNextHour = (60 - timeinfo.tm_min) * 60 - timeinfo.tm_sec;
-    Serial.printf("Sleeping for %d seconds until next hour...\n", secondsToNextHour);
-    esp_sleep_enable_timer_wakeup(secondsToNextHour * 1000000ULL);
+    int secondsToNext = 3600; // 1 小时
+    Serial.printf("Sleeping for %d seconds until next upload...\n", secondsToNext);
+    esp_sleep_enable_timer_wakeup((uint64_t)secondsToNext * 1000000ULL);
     esp_deep_sleep_start();
 }
 
@@ -130,31 +112,33 @@ void sleepUntilNextHour() {
 void setup() {
     Serial.begin(115200);
     dht.setup(DHT_PIN, DHTesp::DHT11);
-
-    if (!connectToWiFi()) {
+    sdcard_init();
+    if (!connectWiFi(cfgs.wifi_ssid.c_str(),cfgs.wifi_password.c_str())) {
         Serial.println("Cannot connect to WiFi, entering deep sleep...");
-        sleepUntilNextHour();
+        sleepUntilNextUpload();
     }
 
-    if (!syncTime()) {
+    if (!syncTime(cfgs.gmt_offset,cfgs.daylight_offset,cfgs.ntp_server.c_str())) {
         Serial.println("Time not synced, proceeding anyway");
     }
+
+    // 启动立即上传一次
+    float temperature, humidity;
+    if (readDHT(temperature, humidity)) {
+        if (!uploadData(cfgs.upload_server.c_str(),temperature, humidity)) {
+            Serial.println("Upload failed");
+        }
+    }
+
+    // 上传完成，断开 WiFi 节省功耗
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+
+    // Deep Sleep 1 小时
+    sleepUntilNextUpload();
 }
 
 // -------------------- LOOP --------------------
 void loop() {
-    if (true){//(isUploadHour()) {
-        float temperature, humidity;
-        if (readDHT(temperature, humidity)) {
-            if (!uploadData(temperature, humidity)) {
-                Serial.println("Upload failed");
-            }
-        }
-    }
-
-    // 断开 WiFi 节省功耗
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-
-    sleepUntilNextHour(); // Deep sleep until next hour
+    // loop 不需要做任何事，MCU 已经 Deep Sleep
 }
