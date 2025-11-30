@@ -2,13 +2,56 @@
 <html>
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Temperature & Humidity Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    h2 {
+      text-align: center;
+      font-size: 28px;
+    }
+
+    /* 让图表自动适配手机 */
+    .chart-container {
+      width: 100%;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    /* 手机模式优化 */
+    @media (max-width: 600px) {
+      body {
+        padding: 12px;
+      }
+      h2 {
+        font-size: 20px;
+      }
+    }
+  </style>
 </head>
-<body style="font-family: sans-serif; padding: 20px;">
+
+<body>
   <h2>Last 24 Hours Data</h2>
-  <canvas id="chart" width="600" height="300"></canvas>
+
+  <!-- 图表外面包一层容器才能响应式 -->
+  <div class="chart-container">
+    <canvas id="chart"></canvas>
+  </div>
+
   <p id="status"></p>
 
   <script>
