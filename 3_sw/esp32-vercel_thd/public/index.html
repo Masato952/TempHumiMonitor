@@ -78,7 +78,7 @@
           return;
         }
 
-        const labels = data.map(d => new Date(d.t).toLocaleTimeString());
+        const labels = data.map(d => new Date(d.t).toLocaleString([], { hour: '2-digit', minute: '2-digit' }));
         const temps  = data.map(d => d.temp);
         const humis  = data.map(d => d.humi);
 
@@ -88,13 +88,53 @@
           data: {
             labels,
             datasets: [
-              { label: "Temperature (°C)", data: temps, borderColor:"red", fill:false },
-              { label: "Humidity (%)", data: humis, borderColor:"blue", fill:false }
+              {
+                label: "Temperature (°C)",
+                data: temps,
+                borderColor: "red",
+                yAxisID: "yTemp",
+                fill: false,
+                tension: 0.3
+              },
+              {
+                label: "Humidity (%)",
+                data: humis,
+                borderColor: "blue",
+                yAxisID: "yHumi",
+                fill: false,
+                tension: 0.3
+              }
             ]
           },
-          options: { responsive: true }
+          options: {
+            responsive: true,
+            interaction: {
+              mode: "index",
+              intersect: false
+            },
+            scales: {
+              yTemp: {
+                type: "linear",
+                position: "left",
+                title: {
+                  display: true,
+                  text: "Temperature (°C)"
+                }
+              },
+              yHumi: {
+                type: "linear",
+                position: "right",
+                title: {
+                  display: true,
+                  text: "Humidity (%)"
+                },
+                grid: {
+                  drawOnChartArea: false   // 👈 不画右轴的网格线，避免太乱
+                }
+              }
+            }
+          }
         });
-
         statusEl.textContent = "";
       } catch (err) {
         console.error("Failed to load data:", err);
